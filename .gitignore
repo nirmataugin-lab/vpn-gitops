@@ -1,0 +1,19 @@
+# Secrets - never commit these
+.env
+*.env
+**/secrets.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temp / build artifacts
+*.bak
+/tmp/
