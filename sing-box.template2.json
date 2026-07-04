@@ -1,0 +1,46 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "cascade-in",
+      "listen": "::",
+      "listen_port": ${VPS2_PORT},
+      "users": [
+        {
+          "uuid": "${CASCADE_UUID}",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${VPS2_REALITY_SERVER_NAME}",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "${VPS2_REALITY_SERVER_NAME}",
+            "server_port": 443
+          },
+          "private_key": "${VPS2_REALITY_PRIVATE_KEY}",
+          "short_id": ["${VPS2_REALITY_SHORT_ID}"]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "final": "direct"
+  }
+}

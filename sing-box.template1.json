@@ -1,0 +1,105 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "1.1.1.1",
+        "strategy": "prefer_ipv4"
+      },
+      {
+        "tag": "local",
+        "address": "local",
+        "strategy": "prefer_ipv4"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [".ru", ".su", ".рф"],
+        "server": "local"
+      }
+    ],
+    "final": "cloudflare"
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "client-in",
+      "listen": "::",
+      "listen_port": 443,
+      "users": [
+        {
+          "uuid": "${CLIENT_UUID}",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${REALITY_SERVER_NAME}",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "${REALITY_SERVER_NAME}",
+            "server_port": 443
+          },
+          "private_key": "${VPS1_REALITY_PRIVATE_KEY}",
+          "short_id": ["${VPS1_REALITY_SHORT_ID}"]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "vless",
+      "tag": "vps2",
+      "server": "${VPS2_IP}",
+      "server_port": ${VPS2_PORT},
+      "uuid": "${CASCADE_UUID}",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "${VPS2_REALITY_SERVER_NAME}",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "${VPS2_REALITY_PUBLIC_KEY}",
+          "short_id": "${VPS2_REALITY_SHORT_ID}"
+        }
+      }
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "127.0.0.0/8",
+          "::1/128",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [".ru", ".su", ".рф"],
+        "outbound": "direct"
+      }
+    ],
+    "final": "vps2"
+  }
+}

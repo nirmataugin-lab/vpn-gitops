@@ -1,0 +1,12 @@
+{
+  "direct": [
+    "private networks",
+    ".ru",
+    ".su",
+    ".рф",
+    "trusted Russian banking and government services"
+  ],
+  "proxy": [
+    "everything else via VPS-2"
+  ]
+}
