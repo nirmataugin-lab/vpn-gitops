@@ -25,6 +25,7 @@ The git history has been purged of any prior committed secrets. See `.gitignore`
 vps1/sing-box.template.json   # VPS1 routing brain template
 vps2/sing-box.template.json   # VPS2 exit node template
 scripts/vpn-gitops-update.sh  # Renderer + deploy script (runs via cron)
+scripts/init-node.sh          # One-time node initializer (generates secrets)
 docs/setup.md                 # Installation & setup guide
 shared/bypass.json            # Editable domain bypass list (RU-focused)
 shared/routing.json           # Routing documentation
@@ -61,3 +62,11 @@ On VPS2:
 ```bash
 echo vps2 > /etc/vpn-node-type
 ```
+
+## Quick start
+
+1. Set node type: `echo vps1 > /etc/vpn-node-type` (or vps2)
+2. Run `scripts/init-node.sh` — generates keys and prompts for peer info
+3. Deploy: `scripts/vpn-gitops-update.sh`
+
+Secrets are never stored in git — they live in `/etc/sing-box/secrets.env` (mode 600).
