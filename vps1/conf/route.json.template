@@ -19,6 +19,34 @@
           ".\u0440\u0444"
         ],
         "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          "yandex.ru",
+          "vk.com",
+          "gosuslugi.ru",
+          "sberbank.ru",
+          "tbank.ru",
+          "alfabank.ru",
+          "mironline.ru",
+          "nalog.gov.ru",
+          "mos.ru"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          "doubleclick.net",
+          "googlesyndication.com",
+          "google-analytics.com",
+          "adservice.google.com"
+        ],
+        "domain_keyword": [
+          "torrent",
+          "bittorrent",
+          "tracker"
+        ],
+        "outbound": "block"
       }
     ],
     "final": "vps2"
