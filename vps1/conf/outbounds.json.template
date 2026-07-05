@@ -28,6 +28,11 @@
     {
       "type": "block",
       "tag": "block"
+    },
+    {
+      "type": "direct",
+      "tag": "direct-fallback"
+    
     }
   ]
 }
