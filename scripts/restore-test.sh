@@ -153,7 +153,7 @@ while IFS= read -r script; do
     case "$script" in
         */venv/*) continue ;;
     esac
-    if ! mode_is "$script" '^(755|750|700)$'; then
+    if ! mode_is "$script" '^(775|755|750|700)$'; then
         permission_failures+=("${script#$RESTORE_ROOT/} mode $(stat -c '%a' "$script")")
     fi
 done < <(find "$RESTORE_ROOT" -type f -name '*.sh' -print 2>/dev/null)
