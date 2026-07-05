@@ -1,0 +1,12 @@
+[Unit]
+Description=VPN Telegram infrastructure alerts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/monitoring/telegram-alert.sh
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run VPN Telegram infrastructure alerts every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Unit=vpn-alert.service
+
+[Install]
+WantedBy=timers.target
