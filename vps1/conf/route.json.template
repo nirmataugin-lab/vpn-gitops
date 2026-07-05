@@ -1,1 +1,26 @@
-{"route": {"final": "direct"}}
+{
+  "route": {
+    "rules": [
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "127.0.0.0/8",
+          "::1/128",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".ru",
+          ".su",
+          ".\u0440\u0444"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "vps2"
+  }
+}
