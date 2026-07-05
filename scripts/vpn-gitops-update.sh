@@ -23,7 +23,6 @@ command -v envsubst >/dev/null || fail "envsubst is not installed (apt-get insta
 [ -d "$REPO_DIR/.git" ]              || fail "$REPO_DIR is not a git repository"
 [ -f "$NODE_TYPE_FILE" ]             || fail "Missing $NODE_TYPE_FILE — must contain vps1 or vps2"
 [ -f "$SECRETS_FILE" ]               || fail "Missing $SECRETS_FILE"
-[ -d "$CONF_DIR" ]                   || fail "Missing $CONF_DIR"
 
 # ------------------------------------------------------------------
 # Detect node type
@@ -126,16 +125,26 @@ else
 fi
 
 # ------------------------------------------------------------------
-# Step 6 — backup current conf directory
+# Step 6 — backup current config
 # ------------------------------------------------------------------
-log "Backing up $CONF_DIR to $BAK_DIR"
-cp -a "$CONF_DIR" "$BAK_DIR"
+if [ "$USE_SPLIT" = true ]; then
+  if [ -d "$CONF_DIR" ]; then
+    log "Backing up $CONF_DIR to $BAK_DIR"
+    cp -a "$CONF_DIR" "$BAK_DIR"
+  fi
+else
+  if [ -f "$COMBINED_DEST" ]; then
+    log "Backing up current config to $BAK"
+    cp "$COMBINED_DEST" "$BAK"
+  fi
+fi
 
 # ------------------------------------------------------------------
 # Step 7 — deploy rendered configs
 # ------------------------------------------------------------------
 deploy_split() {
   log "Deploying split configs to $CONF_DIR"
+  mkdir -p "$CONF_DIR"
   for f in "$CONF_DIR"/*.json; do
     [ -f "$f" ] || continue
     base="$(basename "$f")"
@@ -203,10 +212,14 @@ if systemctl is-active --quiet sing-box; then
 fi
 
 log "sing-box failed to start — rolling back"
-if [ -d "$BAK_DIR" ]; then
+if [ "$USE_SPLIT" = true ] && [ -d "$BAK_DIR" ]; then
   log "Restoring backup from $BAK_DIR"
   rm -rf "$CONF_DIR"
   cp -a "$BAK_DIR" "$CONF_DIR"
+  systemctl restart sing-box || true
+  log "Rollback complete — previous config restored"
+elif [ -f "$BAK" ]; then
+  install -m 600 "$BAK" "$COMBINED_DEST"
   systemctl restart sing-box || true
   log "Rollback complete — previous config restored"
 fi
