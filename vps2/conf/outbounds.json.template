@@ -5,27 +5,6 @@
       "tag": "direct"
     },
     {
-      "type": "vless",
-      "tag": "vps2",
-      "server": "${VPS2_IP}",
-      "server_port": ${VPS2_PORT},
-      "uuid": "${CASCADE_UUID}",
-      "flow": "xtls-rprx-vision",
-      "tls": {
-        "enabled": true,
-        "server_name": "www.cloudflare.com",
-        "utls": {
-          "enabled": true,
-          "fingerprint": "chrome"
-        },
-        "reality": {
-          "enabled": true,
-          "public_key": "${VPS2_REALITY_PUBLIC_KEY}",
-          "short_id": "${VPS2_REALITY_SHORT_ID}"
-        }
-      }
-    },
-    {
       "type": "block",
       "tag": "block"
     },

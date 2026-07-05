@@ -49,6 +49,6 @@
         "outbound": "block"
       }
     ],
-    "final": "vps2"
+    "final": "direct"
   }
 }
