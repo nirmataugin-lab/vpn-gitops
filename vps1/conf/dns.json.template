@@ -2,10 +2,26 @@
   "dns": {
     "servers": [
       {
+        "tag": "cloudflare",
+        "address": "1.1.1.1",
+        "strategy": "prefer_ipv4"
+      },
+      {
         "tag": "local",
-        "type": "local"
+        "address": "local",
+        "strategy": "prefer_ipv4"
       }
     ],
-    "strategy": "prefer_ipv4"
+    "rules": [
+      {
+        "domain_suffix": [
+          ".ru",
+          ".su",
+          ".\u0440\u0444"
+        ],
+        "server": "local"
+      }
+    ],
+    "final": "cloudflare"
   }
 }

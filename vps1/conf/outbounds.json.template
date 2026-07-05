@@ -8,12 +8,12 @@
       "type": "vless",
       "tag": "vps2",
       "server": "${VPS2_IP}",
-      "server_port": ${VPS2_PORT},
+      "server_port": 443,
       "uuid": "${CASCADE_UUID}",
       "flow": "xtls-rprx-vision",
       "tls": {
         "enabled": true,
-        "server_name": "www.cloudflare.com",
+        "server_name": "${VPS2_REALITY_SERVER_NAME}",
         "utls": {
           "enabled": true,
           "fingerprint": "chrome"

@@ -1,8 +1,6 @@
 {
   "log": {
-    "disabled": false,
-    "level": "error",
-    "output": "/etc/sing-box/sb.log",
+    "level": "info",
     "timestamp": true
   }
 }
