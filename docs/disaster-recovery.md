@@ -28,9 +28,6 @@
 
 | Компонент | Причина |
 |-----------|---------|
-| `vpn-backup.service`, `vpn-backup.timer` | Не включены в список бэкапа systemd |
-| `vpn_bot.service` | Не включён в список бэкапа systemd |
-| `alsero_crm.service` | Не включён в список бэкапа systemd |
 | Пакеты ОС | Устанавливаются через `apt` |
 
 ---
@@ -161,79 +158,8 @@ cp -a "$WORK_DIR"/bots /opt/bots
 
 ### 7.5. Восстановление systemd units
 
-**Из архива (sing-box, vpn-gitops-update, vpn-failover):**
 ```bash
 cp -a "$WORK_DIR"/systemd/* /etc/systemd/system/
-systemctl daemon-reload
-```
-
-**Вручную (не входят в бэкап):**
-
-Создать `/etc/systemd/system/vpn-backup.service`:
-```ini
-[Unit]
-Description=VPN Backup — archive configs, databases and system state
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/opt/backup/scripts/backup.sh
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Создать `/etc/systemd/system/vpn-backup.timer`:
-```ini
-[Unit]
-Description=Daily VPN backup at 03:30
-Requires=vpn-backup.service
-
-[Timer]
-OnCalendar=03:30
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
-
-Создать `/etc/systemd/system/vpn_bot.service`:
-```ini
-[Unit]
-Description=VPN Telegram Bot
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/opt/bots/vpn_bot
-ExecStart=/opt/bots/vpn_bot/venv/bin/python /opt/bots/vpn_bot/bot.py
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Создать `/etc/systemd/system/alsero_crm.service`:
-```ini
-[Unit]
-Description=Alsero CRM Bot
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/opt/bots/alsero_crm
-ExecStart=/opt/bots/alsero_crm/venv/bin/python bot.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
 systemctl daemon-reload
 ```
 
@@ -282,20 +208,20 @@ ln -sf /opt/vpn-gitops/scripts/vpn-gitops-update.sh /usr/local/bin/vpn-gitops-up
 
 ---
 
-## 8. Как включить сервисы
+## 8. Автоматическое восстановление systemd
+
+После распаковки backup-архива достаточно выполнить:
 
 ```bash
-# Включить и запустить sing-box
-systemctl enable --now sing-box
+systemctl daemon-reload
 
-# Включить таймеры
-systemctl enable --now vpn-gitops-update.timer
-systemctl enable --now vpn-failover.timer
-systemctl enable --now vpn-backup.timer
-
-# Включить и запустить ботов
-systemctl enable --now vpn_bot
-systemctl enable --now alsero_crm
+systemctl enable --now \
+    sing-box \
+    vpn-gitops-update.timer \
+    vpn-failover.timer \
+    vpn-backup.timer \
+    vpn_bot \
+    alsero_crm
 ```
 
 Проверить статус:
