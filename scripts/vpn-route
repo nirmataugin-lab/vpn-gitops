@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONF_DIR="/etc/sing-box/conf"
+ROUTE_JSON="$CONF_DIR/route.json"
+BAK_FILE="/tmp/route.json.bak"
+LOG_FILE="/var/log/vpn-route-switch.log"
+
+log() {
+  local msg="[VPN-ROUTE] $(date '+%Y-%m-%d %H:%M:%S') $*"
+  echo "$msg" | tee -a "$LOG_FILE"
+}
+
+# ------------------------------------------------------------------
+# Prerequisites
+# ------------------------------------------------------------------
+command -v jq       >/dev/null || { log "FATAL: jq is not installed";  exit 1; }
+command -v sing-box >/dev/null || { log "FATAL: sing-box is not installed"; exit 1; }
+
+[ -f "$ROUTE_JSON" ] || { log "FATAL: $ROUTE_JSON not found"; exit 1; }
+
+# ------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------
+export ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true
+export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true
+
+current_final() {
+  jq -r '.route.final // "unknown"' "$ROUTE_JSON"
+}
+
+switch_to() {
+  local target="$1"
+  local label="$2"
+  local current
+  current="$(current_final)"
+
+  if [ "$current" = "$target" ]; then
+    log "Already set to '$target' — nothing to do"
+    echo "Current route final: $target (no change needed)"
+    exit 0
+  fi
+
+  log "Switching route final: '$current' -> '$target' ($label)"
+
+  # Backup
+  cp "$ROUTE_JSON" "$BAK_FILE"
+  log "Backup saved to $BAK_FILE"
+
+  # Modify final
+  jq --arg final "$target" '.route.final = $final' "$ROUTE_JSON" > "/tmp/route.json.new" || {
+    log "FATAL: jq failed to modify route.json"
+    exit 1
+  }
+  mv "/tmp/route.json.new" "$ROUTE_JSON"
+  log "route.json updated"
+
+  # Validate
+  if sing-box check -C "$CONF_DIR" 2>&1 | tee -a "$LOG_FILE"; then
+    log "sing-box check: PASS"
+  else
+    log "ERROR: sing-box check FAILED — rolling back"
+    cp "$BAK_FILE" "$ROUTE_JSON"
+    log "Rolled back route.json"
+    rm -f "$BAK_FILE"
+    exit 1
+  fi
+
+  # Restart
+  log "Restarting sing-box..."
+  systemctl restart sing-box
+  sleep 2
+
+  if systemctl is-active --quiet sing-box; then
+    log "sing-box restarted successfully"
+    rm -f "$BAK_FILE"
+    log "Done — route final is now '$target'"
+  else
+    log "ERROR: sing-box failed to start — rolling back"
+    cp "$BAK_FILE" "$ROUTE_JSON"
+    log "Rolled back route.json"
+    systemctl restart sing-box || true
+    rm -f "$BAK_FILE"
+    exit 1
+  fi
+}
+
+# ------------------------------------------------------------------
+# Commands
+# ------------------------------------------------------------------
+case "${1:-}" in
+  status)
+    echo "Current route final: $(current_final)"
+    ;;
+  vps2)
+    switch_to "vps2" "VPN exit node"
+    ;;
+  fallback)
+    switch_to "direct-fallback" "Direct fallback"
+    ;;
+  *)
+    echo "Usage: vpn-route {status|vps2|fallback}"
+    exit 1
+    ;;
+esac
