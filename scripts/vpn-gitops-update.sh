@@ -7,8 +7,10 @@ REMOTE="origin"
 NODE_TYPE_FILE="/etc/vpn-node-type"
 SECRETS_FILE="/etc/sing-box/secrets.env"
 CONF_DIR="/etc/sing-box/conf"
+COMBINED_DEST="/etc/sing-box/config.json"
 TMP_DIR="/tmp/sing-box-render.$$"
 BAK_DIR="/tmp/sing-box-backup.$(date +%Y%m%d_%H%M%S)"
+BAK="/tmp/sing-box-config-backup.$(date +%Y%m%d_%H%M%S).json"
 
 log() { echo "[VPN-GITOPS] $*"; }
 fail() { echo "[VPN-GITOPS] ERROR: $*" >&2; exit 1; }
@@ -125,7 +127,102 @@ else
 fi
 
 # ------------------------------------------------------------------
-# Step 6 — backup current config
+# Step 6 — validate with sing-box check
+# ------------------------------------------------------------------
+if command -v sing-box >/dev/null; then
+  if [ "$USE_SPLIT" = true ]; then
+    log "Validating with: sing-box check -C $TMP_DIR"
+    sing-box check -C "$TMP_DIR" || fail "sing-box config validation failed"
+  else
+    log "Validating with: sing-box check -c $TMP_DIR/config.json"
+    sing-box check -c "$TMP_DIR/config.json" || fail "sing-box config validation failed"
+  fi
+else
+  log "sing-box binary not found — skipping config validation"
+fi
+
+# ------------------------------------------------------------------
+# Step 7 — compare rendered config with current config
+# ------------------------------------------------------------------
+has_split_changes() {
+  local f base target
+
+  if [ ! -d "$CONF_DIR" ]; then
+    return 0
+  fi
+
+  for f in "$TMP_DIR"/*.json; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    target="$CONF_DIR/$base"
+    if [ ! -f "$target" ] || ! cmp -s "$target" "$f"; then
+      return 0
+    fi
+  done
+
+  for f in "$CONF_DIR"/*.json; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    if [ ! -f "$TMP_DIR/$base" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+show_split_diff() {
+  local f base target
+
+  if [ ! -d "$CONF_DIR" ]; then
+    log "Current config directory $CONF_DIR does not exist"
+  fi
+
+  for f in "$TMP_DIR"/*.json; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    target="$CONF_DIR/$base"
+    if [ ! -f "$target" ]; then
+      diff -u /dev/null "$f" || true
+    elif ! cmp -s "$target" "$f"; then
+      diff -u "$target" "$f" || true
+    fi
+  done
+
+  for f in "$CONF_DIR"/*.json; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    if [ ! -f "$TMP_DIR/$base" ]; then
+      diff -u "$f" /dev/null || true
+    fi
+  done
+}
+
+if [ "$USE_SPLIT" = true ]; then
+  if has_split_changes; then
+    log "Config changes detected:"
+    show_split_diff
+  else
+    log "No config changes, skipping deploy and restart"
+    rm -rf "$TMP_DIR"
+    exit 0
+  fi
+else
+  if [ -f "$COMBINED_DEST" ] && cmp -s "$COMBINED_DEST" "$TMP_DIR/config.json"; then
+    log "No config changes, skipping deploy and restart"
+    rm -rf "$TMP_DIR"
+    exit 0
+  fi
+  log "Config changes detected:"
+  if [ -f "$COMBINED_DEST" ]; then
+    diff -u "$COMBINED_DEST" "$TMP_DIR/config.json" || true
+  else
+    diff -u /dev/null "$TMP_DIR/config.json" || true
+  fi
+fi
+
+# ------------------------------------------------------------------
+# Step 8 — backup current config
 # ------------------------------------------------------------------
 if [ "$USE_SPLIT" = true ]; then
   if [ -d "$CONF_DIR" ]; then
@@ -140,7 +237,7 @@ else
 fi
 
 # ------------------------------------------------------------------
-# Step 7 — deploy rendered configs
+# Step 9 — deploy rendered configs
 # ------------------------------------------------------------------
 deploy_split() {
   log "Deploying split configs to $CONF_DIR"
@@ -181,29 +278,14 @@ else
 fi
 
 # ------------------------------------------------------------------
-# Step 8 — validate with sing-box check
-# ------------------------------------------------------------------
-if command -v sing-box >/dev/null; then
-  if [ "$USE_SPLIT" = true ]; then
-    log "Validating with: sing-box check -C $CONF_DIR"
-    sing-box check -C "$CONF_DIR" || fail "sing-box config validation failed"
-  else
-    log "Validating with: sing-box check -c /etc/sing-box/config.json"
-    sing-box check -c /etc/sing-box/config.json || fail "sing-box config validation failed"
-  fi
-else
-  log "sing-box binary not found — skipping config validation"
-fi
-
-# ------------------------------------------------------------------
-# Step 9 — restart sing-box
+# Step 10 — restart sing-box
 # ------------------------------------------------------------------
 log "Restarting sing-box"
 systemctl restart sing-box || true
 sleep 2
 
 # ------------------------------------------------------------------
-# Step 10 — verify and rollback on failure
+# Step 11 — verify and rollback on failure
 # ------------------------------------------------------------------
 if systemctl is-active --quiet sing-box; then
   log "Deploy successful"
