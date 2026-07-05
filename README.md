@@ -26,6 +26,7 @@ vps1/sing-box.template.json   # VPS1 routing brain template
 vps2/sing-box.template.json   # VPS2 exit node template
 scripts/vpn-gitops-update.sh  # Renderer + deploy script (runs via cron)
 scripts/init-node.sh          # One-time node initializer (generates secrets)
+scripts/restore-test.sh       # Automated backup restore verification, no deploy/restart
 docs/setup.md                 # Installation & setup guide
 shared/bypass.json            # Editable domain bypass list (RU-focused)
 shared/routing.json           # Routing documentation
