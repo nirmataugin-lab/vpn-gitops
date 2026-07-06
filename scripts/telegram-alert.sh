@@ -186,7 +186,7 @@ recover_incident() {
   previous=$(state_get "incidents.${key}" || true)
   [ -n "$previous" ] || return 0
   state_update clear_incident "$key"
-  telegram_send recovery "$key" "$event" "$details"
+  telegram_send recovery "recovery_${key}" "$event" "$details"
 }
 
 service_result() {
