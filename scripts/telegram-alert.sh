@@ -4,7 +4,7 @@ set -euo pipefail
 STATE_DIR="${STATE_DIR:-/var/lib/vpn-alert}"
 STATE_FILE="${STATE_FILE:-${STATE_DIR}/state.json}"
 LOG_PREFIX="[VPN-ALERT]"
-ANTISPAM_SECONDS="${ANTISPAM_SECONDS:-1800}"
+ANTISPAM_SECONDS="${ANTISPAM_SECONDS:-21600}"
 MEMORY_CURRENT_WARN_BYTES="${MEMORY_CURRENT_WARN_BYTES:-734003200}"
 MEMORY_PEAK_WARN_BYTES="${MEMORY_PEAK_WARN_BYTES:-838860800}"
 JOURNAL_SINCE="${JOURNAL_SINCE:-6 minutes ago}"
@@ -45,25 +45,35 @@ elif value is not None:
 PY
 }
 
-state_set_status() {
-  local key="$1" value="$2"
-  python3 - "$STATE_FILE" "$key" "$value" <<'PY'
+state_update() {
+  local action="$1" key="${2:-}" value="${3:-}"
+  python3 - "$STATE_FILE" "$action" "$key" "$value" <<'PY'
 import json
 import os
 import sys
 import time
 
-path, key, value = sys.argv[1], sys.argv[2], sys.argv[3]
+path, action, key, value = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 try:
     with open(path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
 except Exception:
     data = {}
 
-statuses = data.setdefault("statuses", {})
-statuses[key] = value
-data["updated_at"] = int(time.time())
+now = int(time.time())
+if action == "status":
+    data.setdefault("statuses", {})[key] = value
+elif action == "incident":
+    data.setdefault("incidents", {})[key] = value
+elif action == "clear_incident":
+    data.setdefault("incidents", {}).pop(key, None)
+    data.setdefault("last_sent", {}).pop(key, None)
+elif action == "sent":
+    data.setdefault("last_sent", {})[key] = now
+else:
+    raise SystemExit(f"unknown action: {action}")
 
+data["updated_at"] = now
 tmp = f"{path}.tmp"
 with open(tmp, "w", encoding="utf-8") as fh:
     json.dump(data, fh, ensure_ascii=False, indent=2, sort_keys=True)
@@ -72,12 +82,11 @@ os.replace(tmp, path)
 PY
 }
 
-mark_send_allowed() {
-  local hash="$1" now
+send_allowed() {
+  local key="$1" now
   now=$(date +%s)
-  python3 - "$STATE_FILE" "$hash" "$now" "$ANTISPAM_SECONDS" <<'PY'
+  python3 - "$STATE_FILE" "$key" "$now" "$ANTISPAM_SECONDS" <<'PY'
 import json
-import os
 import sys
 
 path, key, now, ttl = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
@@ -87,28 +96,8 @@ try:
 except Exception:
     data = {}
 
-last_sent = data.setdefault("last_sent", {})
-last = int(last_sent.get(key, 0) or 0)
-if now - last < ttl:
-    print("suppress")
-    sys.exit(0)
-
-last_sent[key] = now
-for old_key, old_ts in list(last_sent.items()):
-    try:
-        old_ts = int(old_ts)
-    except Exception:
-        old_ts = 0
-    if now - old_ts > ttl * 48:
-        last_sent.pop(old_key, None)
-data["updated_at"] = now
-
-tmp = f"{path}.tmp"
-with open(tmp, "w", encoding="utf-8") as fh:
-    json.dump(data, fh, ensure_ascii=False, indent=2, sort_keys=True)
-    fh.write("\n")
-os.replace(tmp, path)
-print("send")
+last = int(data.get("last_sent", {}).get(key, 0) or 0)
+print("send" if now - last >= ttl else "suppress")
 PY
 }
 
@@ -134,24 +123,44 @@ load_env() {
   warn "No .env file found for Telegram settings"
 }
 
+message_title() {
+  case "$1" in
+    critical) printf '🚨 VPN Critical' ;;
+    warning) printf '⚠️ VPN Warning' ;;
+    recovery) printf '✅ VPN Recovery' ;;
+  esac
+}
+
 telegram_send() {
-  local severity="$1" text="$2" message hash allowed
-  message="${severity} VPN infrastructure alert
-host=$(hostname -f 2>/dev/null || hostname)
-${text}"
-  hash=$(printf '%s' "$message" | sha256sum | awk '{print $1}')
-  allowed=$(mark_send_allowed "$hash")
+  local severity="$1" key="$2" event="$3" details="${4:-}" host now title message allowed
+  allowed=$(send_allowed "$key")
   if [ "$allowed" != "send" ]; then
-    log "Suppressed duplicate alert: ${text%%$'\n'*}"
+    log "Suppressed duplicate ${severity}: ${event}"
+    return 0
+  fi
+
+  host=$(hostname -f 2>/dev/null || hostname)
+  now=$(date -u '+%Y-%m-%d %H:%M UTC')
+  title=$(message_title "$severity")
+  message=$(printf '%s\n\nHost: %s\nEvent: %s' "$title" "$host" "$event")
+  if [ -n "$details" ]; then
+    message=$(printf '%s\n\n%s' "$message" "$details")
+  fi
+  message=$(printf '%s\n\nTime:\n%s' "$message" "$now")
+
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    printf '%s\n' "$message"
+    state_update sent "$key"
+    log "Dry-run alert: ${event}"
     return 0
   fi
 
   if [ -z "${BOT_TOKEN:-}" ]; then
-    warn "BOT_TOKEN is not configured; alert was not sent: ${text%%$'\n'*}"
+    warn "BOT_TOKEN is not configured; alert was not sent: ${event}"
     return 0
   fi
   if [ -z "${ADMIN_CHAT_ID:-}" ]; then
-    warn "ADMIN_CHAT_ID is not configured; alert was not sent: ${text%%$'\n'*}"
+    warn "ADMIN_CHAT_ID is not configured; alert was not sent: ${event}"
     return 0
   fi
 
@@ -159,10 +168,25 @@ ${text}"
     -d "chat_id=${ADMIN_CHAT_ID}" \
     --data-urlencode "text=${message}" \
     "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" >/dev/null; then
-    log "Sent alert: ${text%%$'\n'*}"
+    state_update sent "$key"
+    log "Sent ${severity}: ${event}"
   else
     warn "Telegram API request failed"
   fi
+}
+
+raise_incident() {
+  local severity="$1" key="$2" event="$3" details="${4:-}"
+  telegram_send "$severity" "$key" "$event" "$details"
+  state_update incident "$key" "$severity"
+}
+
+recover_incident() {
+  local key="$1" event="$2" details="${3:-}" previous
+  previous=$(state_get "incidents.${key}" || true)
+  [ -n "$previous" ] || return 0
+  state_update clear_incident "$key"
+  telegram_send recovery "$key" "$event" "$details"
 }
 
 service_result() {
@@ -171,35 +195,36 @@ service_result() {
 }
 
 check_sing_box() {
-  local active previous
+  local active
   active=$(systemctl is-active sing-box.service 2>/dev/null || true)
-  previous=$(state_get statuses.sing_box || true)
   if [ "$active" != "active" ]; then
-    telegram_send "🚨 Critical" "sing-box.service status=${active:-unknown}"
-  elif [ -n "$previous" ] && [ "$previous" != "active" ]; then
-    telegram_send "✅ Recovery" "sing-box.service is healthy again"
+    raise_incident critical sing_box "sing-box.service is not active" "Status: ${active:-unknown}"
+  else
+    recover_incident sing_box "sing-box.service recovered" "Status: active"
   fi
-  state_set_status sing_box "${active:-unknown}"
+  state_update status sing_box "${active:-unknown}"
 }
 
 check_memory() {
-  local current peak current_mb peak_mb
+  local current peak current_mb peak_mb details
   current=$(systemctl show sing-box.service -p MemoryCurrent --value 2>/dev/null || printf '0')
   peak=$(systemctl show sing-box.service -p MemoryPeak --value 2>/dev/null || printf '0')
   [[ "$current" =~ ^[0-9]+$ ]] || current=0
   [[ "$peak" =~ ^[0-9]+$ ]] || peak=0
   current_mb=$((current / 1024 / 1024))
   peak_mb=$((peak / 1024 / 1024))
-  if [ "$current" -gt "$MEMORY_CURRENT_WARN_BYTES" ]; then
-    telegram_send "⚠ Warning" "MemoryCurrent=${current_mb}MB exceeds 700MB"
-  fi
-  if [ "$peak" -gt "$MEMORY_PEAK_WARN_BYTES" ]; then
-    telegram_send "⚠ Warning" "MemoryPeak=${peak_mb}MB exceeds 800MB"
+
+  if [ "$current" -gt "$MEMORY_CURRENT_WARN_BYTES" ] || [ "$peak" -gt "$MEMORY_PEAK_WARN_BYTES" ]; then
+    details=$(printf 'MemoryCurrent: %s MB\nMemoryPeak: %s MB' "$current_mb" "$peak_mb")
+    raise_incident warning memory_high "Memory usage high" "$details"
+  else
+    details=$(printf 'MemoryCurrent: %s MB\nMemoryPeak: %s MB' "$current_mb" "$peak_mb")
+    recover_incident memory_high "Memory usage recovered" "$details"
   fi
 }
 
 check_healthcheck() {
-  local file="/var/lib/vpn-healthcheck/state.json" status previous
+  local file="/var/lib/vpn-healthcheck/state.json" status details
   [ -f "$file" ] || return 0
   status=$(python3 - "$file" <<'PY'
 import json, sys
@@ -209,40 +234,52 @@ except Exception:
     pass
 PY
 )
-  previous=$(state_get statuses.healthcheck || true)
+  details=$(python3 - "$file" <<'PY'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    raise SystemExit
+for name in ("checked_at", "details", "consecutive_failures"):
+    value = data.get(name)
+    if value not in (None, ""):
+        print(f"{name}: {value}")
+PY
+)
   if [ "$status" = "FAIL" ]; then
-    telegram_send "🚨 Critical" "vpn-healthcheck status=FAIL"
-  elif [ "$status" = "OK" ] && [ "$previous" = "FAIL" ]; then
-    telegram_send "✅ Recovery" "vpn-healthcheck status=OK"
+    raise_incident critical healthcheck_fail "vpn-healthcheck FAIL" "$details"
+  elif [ "$status" = "OK" ]; then
+    recover_incident healthcheck_fail "vpn-healthcheck recovered" "$details"
   fi
-  [ -n "$status" ] && state_set_status healthcheck "$status"
+  [ -n "$status" ] && state_update status healthcheck "$status"
 }
 
 check_backup() {
-  local result previous
+  local result details
   result=$(service_result vpn-backup.service)
   [ -n "$result" ] || return 0
-  previous=$(state_get statuses.backup || true)
+  details=$(printf 'Unit: vpn-backup.service\nResult: %s' "$result")
   if [ "$result" != "success" ]; then
-    telegram_send "🚨 Critical" "backup FAILED: vpn-backup.service Result=${result}"
-  elif [ "$previous" != "" ] && [ "$previous" != "success" ]; then
-    telegram_send "✅ Recovery" "backup again PASS"
+    raise_incident critical backup_failed "backup FAILED" "$details"
+  else
+    recover_incident backup_failed "backup recovered" "$details"
   fi
-  state_set_status backup "$result"
+  state_update status backup "$result"
 }
 
 check_restore_test() {
-  local unit result previous
-  for unit in vpn-restore-test.service restore-test.service vpn-restore-test.timer restore-test.timer; do
+  local unit result details
+  for unit in vpn-restore-test.service restore-test.service; do
     if systemctl cat "$unit" >/dev/null 2>&1; then
       result=$(service_result "$unit")
-      previous=$(state_get statuses.restore_test || true)
-      if [ -n "$result" ] && [ "$result" != "success" ]; then
-        telegram_send "🚨 Critical" "restore-test FAILED: ${unit} Result=${result}"
-      elif [ "$result" = "success" ] && [ "$previous" != "" ] && [ "$previous" != "success" ]; then
-        telegram_send "✅ Recovery" "restore-test again PASS"
+      [ -n "$result" ] || return 0
+      details=$(printf 'Unit: %s\nResult: %s' "$unit" "$result")
+      if [ "$result" != "success" ]; then
+        raise_incident critical restore_test_failed "restore-test FAILED" "$details"
+      else
+        recover_incident restore_test_failed "restore-test recovered" "$details"
       fi
-      [ -n "$result" ] && state_set_status restore_test "$result"
+      state_update status restore_test "$result"
       return 0
     fi
   done
@@ -252,7 +289,7 @@ check_oom() {
   local line
   line=$(journalctl -k --since "$JOURNAL_SINCE" --no-pager 2>/dev/null | grep -Eim1 'oom-killer|Out of memory|Killed process' || true)
   if [ -n "$line" ]; then
-    telegram_send "🚨 Critical" "OOM killer detected\n${line}"
+    raise_incident critical kernel_oom "kernel OOM" "$line"
   fi
 }
 
@@ -260,22 +297,14 @@ check_failover() {
   local line
   line=$(journalctl -u vpn-failover.service --since "$JOURNAL_SINCE" -o cat --no-pager 2>/dev/null | grep -Eim1 'switch(ed)? route|route (changed|updated|switched)' || true)
   if [ -n "$line" ]; then
-    telegram_send "⚠ Warning" "failover switched route\n${line}"
-  fi
-}
-
-check_gitops_deploy() {
-  local line
-  line=$(journalctl -u vpn-gitops-update.service --since "$JOURNAL_SINCE" --no-pager 2>/dev/null | grep -Eim1 'Deploy successful|Deploying .*config' || true)
-  if [ -n "$line" ]; then
-    telegram_send "⚠ Warning" "GitOps deployed configuration\n${line}"
+    raise_incident warning failover_route_changed "failover switched route" "$line"
   fi
 }
 
 main() {
   load_env || true
   if [ "${1:-}" = "--test" ]; then
-    telegram_send "✅ Recovery" "Test notification from vpn-alert; no incident was created"
+    log "Test notification disabled; no Telegram message sent"
     return 0
   fi
 
@@ -286,7 +315,6 @@ main() {
   check_backup
   check_restore_test
   check_failover
-  check_gitops_deploy
 }
 
 main "$@"
