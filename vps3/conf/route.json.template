@@ -1,0 +1,61 @@
+{
+  "route": {
+    "rules": [
+      {
+        "ip_cidr": [
+          "${VPS3_IP}/32",
+          "10.29.88.145/32"
+        ],
+        "outbound": "block"
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "127.0.0.0/8",
+          "::1/128",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".ru",
+          ".su",
+          ".\u0440\u0444"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          "yandex.ru",
+          "vk.com",
+          "gosuslugi.ru",
+          "sberbank.ru",
+          "tbank.ru",
+          "alfabank.ru",
+          "mironline.ru",
+          "nalog.gov.ru",
+          "mos.ru"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          "doubleclick.net",
+          "googlesyndication.com",
+          "google-analytics.com",
+          "adservice.google.com"
+        ],
+        "domain_keyword": [
+          "torrent",
+          "bittorrent",
+          "tracker"
+        ],
+        "outbound": "block"
+      }
+    ],
+    "final": "direct"
+  }
+}

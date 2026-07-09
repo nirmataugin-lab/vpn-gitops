@@ -1,0 +1,150 @@
+{
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "cascade-in",
+      "listen": "::",
+      "listen_port": ${VPS3_PORT},
+      "users": [
+        {
+          "uuid": "${VPS3_CASCADE_UUID}",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "${VPS3_REALITY_SERVER_NAME}",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "${VPS3_REALITY_SERVER_NAME}",
+            "server_port": 443
+          },
+          "private_key": "${VPS3_REALITY_PRIVATE_KEY}",
+          "short_id": ["${VPS3_REALITY_SHORT_ID}"]
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-reality",
+      "listen": "::",
+      "listen_port": 59505,
+      "users": [
+        {
+          "uuid": "${CLIENT_UUID}",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "www.iij.ad.jp",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.iij.ad.jp",
+            "server_port": 443
+          },
+          "private_key": "${VPS3_REALITY_CLIENT_PRIVATE_KEY}",
+          "short_id": [
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "type": "vmess",
+      "tag": "vmess-ws",
+      "listen": "127.0.0.1",
+      "listen_port": 8001,
+      "users": [
+        {
+          "uuid": "${CLIENT_UUID}"
+        }
+      ],
+      "transport": {
+        "type": "ws",
+        "path": "/vmess-argo",
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hysteria2",
+      "listen": "::",
+      "listen_port": 59508,
+      "users": [
+        {
+          "password": "${CLIENT_UUID}"
+        }
+      ],
+      "ignore_client_bandwidth": false,
+      "masquerade": "https://bing.com",
+      "tls": {
+        "enabled": true,
+        "alpn": [
+          "h3"
+        ],
+        "min_version": "1.3",
+        "max_version": "1.3",
+        "certificate_path": "/etc/sing-box/cert.pem",
+        "key_path": "/etc/sing-box/private.key"
+      }
+    },
+    {
+      "type": "tuic",
+      "tag": "tuic",
+      "listen": "::",
+      "listen_port": 59507,
+      "users": [
+        {
+          "uuid": "${CLIENT_UUID}",
+          "password": "${CLIENT_UUID}"
+        }
+      ],
+      "congestion_control": "bbr",
+      "tls": {
+        "enabled": true,
+        "alpn": [
+          "h3"
+        ],
+        "certificate_path": "/etc/sing-box/cert.pem",
+        "key_path": "/etc/sing-box/private.key"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-reality-cascade",
+      "listen": "::",
+      "listen_port": 8080,
+      "users": [
+        {
+          "uuid": "${VPS3_CASCADE_CLIENT_UUID}"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "cloudflare.com",
+        "reality": {
+          "enabled": true,
+          "private_key": "${VPS3_CASCADE_CLIENT_PRIVATE_KEY}",
+          "short_id": [
+            "${VPS3_CASCADE_CLIENT_SHORT_ID}"
+          ],
+          "handshake": {
+            "server": "cloudflare.com",
+            "server_port": 443
+          }
+        }
+      }
+    },
+    {
+      "type": "http",
+      "tag": "http-proxy",
+      "listen": "::",
+      "listen_port": 8082,
+      "sniff": false,
+      "set_system_proxy": false
+    }
+  ]
+}
