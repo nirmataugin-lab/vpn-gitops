@@ -17,3 +17,10 @@ Thumbs.db
 # Temp / build artifacts
 *.bak
 /tmp/
+
+# Logs
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
