@@ -13,12 +13,12 @@ err() { echo "[INIT-NODE] ERROR: $*" >&2; exit 1; }
 command -v sing-box >/dev/null || err "sing-box is not installed"
 command -v openssl   >/dev/null || err "openssl is not installed"
 
-[ -f "$NODE_TYPE_FILE" ] || err "Missing $NODE_TYPE_FILE -- run: echo vps1|vps2 > $NODE_TYPE_FILE"
+[ -f "$NODE_TYPE_FILE" ] || err "Missing $NODE_TYPE_FILE -- run: echo vps1|vps2|vps3 > $NODE_TYPE_FILE"
 
 NODE_TYPE="$(tr -d '[:space:]' < "$NODE_TYPE_FILE")"
 case "$NODE_TYPE" in
-  vps1|vps2) log "Node type detected: $NODE_TYPE" ;;
-  *)         err "Unknown node type '$NODE_TYPE' (expected vps1 or vps2)" ;;
+  vps1|vps2|vps3) log "Node type detected: $NODE_TYPE" ;;
+  *)              err "Unknown node type '$NODE_TYPE' (expected vps1, vps2 or vps3)" ;;
 esac
 
 # ------------------------------------------------------------------
@@ -137,11 +137,67 @@ init_vps2() {
 }
 
 # ==================================================================
+# VPS3
+# ==================================================================
+init_vps3() {
+  log "Generating VPS3 secrets"
+
+  CLIENT_UUID=$(gen_uuid)
+  write_secret "CLIENT_UUID" "$CLIENT_UUID"
+  log "CLIENT_UUID generated"
+
+  VPS3_CASCADE_UUID=$(gen_uuid)
+  write_secret "VPS3_CASCADE_UUID" "$VPS3_CASCADE_UUID"
+  log "VPS3_CASCADE_UUID generated"
+
+  VPS3_CASCADE_CLIENT_UUID=$(gen_uuid)
+  write_secret "VPS3_CASCADE_CLIENT_UUID" "$VPS3_CASCADE_CLIENT_UUID"
+  log "VPS3_CASCADE_CLIENT_UUID generated"
+
+  eval "$(gen_keypair | sed -n 's/^PrivateKey: \(.*\)/VPS3_PRIVATE_KEY=\1/p; s/^PublicKey: \(.*\)/VPS3_PUBLIC_KEY=\1/p')"
+  write_secret "VPS3_REALITY_PRIVATE_KEY" "$VPS3_PRIVATE_KEY"
+  write_secret "VPS3_REALITY_PUBLIC_KEY" "$VPS3_PUBLIC_KEY"
+  log "VPS3 Reality keypair generated"
+
+  eval "$(gen_keypair | sed -n 's/^PrivateKey: \(.*\)/VPS3_CASCADE_CLIENT_PRIVATE_KEY=\1/p; s/^PublicKey: \(.*\)/VPS3_CASCADE_CLIENT_PUBLIC_KEY=\1/p')"
+  write_secret "VPS3_CASCADE_CLIENT_PRIVATE_KEY" "$VPS3_CASCADE_CLIENT_PRIVATE_KEY"
+  write_secret "VPS3_CASCADE_CLIENT_PUBLIC_KEY" "$VPS3_CASCADE_CLIENT_PUBLIC_KEY"
+  log "VPS3 cascade client keypair generated"
+
+  VPS3_REALITY_SHORT_ID=$(gen_short_id)
+  write_secret "VPS3_REALITY_SHORT_ID" "$VPS3_REALITY_SHORT_ID"
+  log "VPS3_REALITY_SHORT_ID generated"
+
+  VPS3_CASCADE_CLIENT_SHORT_ID=$(gen_short_id)
+  write_secret "VPS3_CASCADE_CLIENT_SHORT_ID" "$VPS3_CASCADE_CLIENT_SHORT_ID"
+  log "VPS3_CASCADE_CLIENT_SHORT_ID generated"
+
+  echo ""
+  log "Enter the following values for VPS3:"
+
+  prompt "VPS3_PORT" "VPS3 inbound port" "443"
+  prompt "VPS3_REALITY_SERVER_NAME" "VPS3 Reality server name" "www.cloudflare.com"
+  prompt "VPS3_IP" "VPS3 public IP address"
+  prompt "VPS3_WARP_PRIVATE_KEY" "VPS3 WARP WireGuard private key"
+
+  echo ""
+  log "VPS3 secrets written to $SECRETS_FILE"
+  echo ""
+  echo "============================================================"
+  echo "  SHARE THESE WITH VPS1/VPS2:"
+  echo "    VPS3_REALITY_PUBLIC_KEY           = $VPS3_PUBLIC_KEY"
+  echo "    VPS3_REALITY_SHORT_ID             = $VPS3_REALITY_SHORT_ID"
+  echo "    VPS3_CASCADE_UUID                 = $VPS3_CASCADE_UUID"
+  echo "============================================================"
+}
+
+# ==================================================================
 # Main
 # ==================================================================
 case "$NODE_TYPE" in
   vps1) init_vps1 ;;
   vps2) init_vps2 ;;
+  vps3) init_vps3 ;;
 esac
 
 echo ""

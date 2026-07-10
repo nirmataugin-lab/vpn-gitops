@@ -23,7 +23,7 @@ command -v jq       >/dev/null || fail "jq is not installed"
 command -v envsubst >/dev/null || fail "envsubst is not installed (apt-get install gettext-base)"
 
 [ -d "$REPO_DIR/.git" ]              || fail "$REPO_DIR is not a git repository"
-[ -f "$NODE_TYPE_FILE" ]             || fail "Missing $NODE_TYPE_FILE — must contain vps1 or vps2"
+[ -f "$NODE_TYPE_FILE" ]             || fail "Missing $NODE_TYPE_FILE — must contain vps1, vps2 or vps3"
 [ -f "$SECRETS_FILE" ]               || fail "Missing $SECRETS_FILE"
 
 # ------------------------------------------------------------------
@@ -31,8 +31,8 @@ command -v envsubst >/dev/null || fail "envsubst is not installed (apt-get insta
 # ------------------------------------------------------------------
 NODE_TYPE="$(tr -d '[:space:]' < "$NODE_TYPE_FILE")"
 case "$NODE_TYPE" in
-  vps1|vps2) log "Node type: $NODE_TYPE" ;;
-  *)         fail "Unknown node type '$NODE_TYPE' (expected vps1 or vps2)" ;;
+  vps1|vps2|vps3) log "Node type: $NODE_TYPE" ;;
+  *)              fail "Unknown node type '$NODE_TYPE' (expected vps1, vps2 or vps3)" ;;
 esac
 
 # ------------------------------------------------------------------
