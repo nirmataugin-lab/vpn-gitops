@@ -86,7 +86,7 @@ init_vps1() {
   prompt "CASCADE_UUID" "Cascade UUID (generate on VPS2, paste here)"
   prompt "VPS2_IP" "VPS2 public IP address"
   prompt "VPS2_PORT" "VPS2 inbound port" "443"
-  prompt "VPS2_REALITY_SERVER_NAME" "VPS2 Reality server name" "www.cloudflare.com"
+  prompt "VPS2_REALITY_SERVER_NAME" "VPS2 Reality server name" "www.samsung.com"
   prompt "VPS2_REALITY_PUBLIC_KEY" "VPS2 Reality public key (generated on VPS2)"
   prompt "VPS2_REALITY_SHORT_ID" "VPS2 Reality short ID (generated on VPS2)"
 
@@ -123,7 +123,7 @@ init_vps2() {
   log "Enter the following values for VPS2:"
 
   prompt "VPS2_PORT" "VPS2 inbound port" "443"
-  prompt "VPS2_REALITY_SERVER_NAME" "VPS2 Reality server name" "www.cloudflare.com"
+  prompt "VPS2_REALITY_SERVER_NAME" "VPS2 Reality server name" "www.samsung.com"
 
   echo ""
   log "VPS2 secrets written to $SECRETS_FILE"
