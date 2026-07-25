@@ -1,0 +1,24 @@
+{
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "cascade-in",
+      "listen": "::",
+      "listen_port": 443,
+      "users": ${CLIENT_USERS_JSON},
+      "tls": {
+        "enabled": true,
+        "server_name": "www.samsung.com",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.samsung.com",
+            "server_port": 443
+          },
+          "private_key": "${VPS4_REALITY_PRIVATE_KEY}",
+          "short_id": ["${VPS4_REALITY_SHORT_ID}"]
+        }
+      }
+    }
+  ]
+}
