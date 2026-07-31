@@ -2,6 +2,9 @@
 .env
 *.env
 **/secrets.env
+*.key
+*.pem
+*.crt
 
 # OS files
 .DS_Store
@@ -16,11 +19,39 @@ Thumbs.db
 
 # Temp / build artifacts
 *.bak
+*.backup
+*.tmp
+*.temp
 /tmp/
 
 # Logs
 *.log
 
-# Python cache
+# Python cache / venv
 __pycache__/
 *.pyc
+venv/
+
+# Databases
+*.db
+*.db-*
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+
+# Archives
+*.tar.gz
+*.tar
+
+# OpenCode local state
+.opencode/
+.local/share/opencode/
+.opencode/bin/opencode
+.local/share/opencode/opencode.db
+.local/share/opencode/opencode.db-*
+.local/share/opencode/opencode.db-shm
+.local/share/opencode/opencode.db-wal
+.local/share/opencode/log/
+.local/share/opencode/tool-output/
